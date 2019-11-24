@@ -6,49 +6,62 @@ const regEx = new RegExp(/\^*.html/); // create regEx to matach file with extens
 const directoryPath = path.join(__dirname, src);
 const jsonFileName = "en-US.json";
 //passsing directoryPath and callback function
-fs.readdir(directoryPath, function (err, files) {
-    if (err) {
-        return console.log('Unable to scan directory: ' + err);
-    } 
-    files.forEach(function (fileName) {
-        if(fileName.match(regEx)){
-            readFileData(fileName)
-        }
+function readAllFileAndDir(directoryPath){
+    directoryPath = path.join(__dirname, directoryPath);
+    fs.readdir(directoryPath, function (err, files) {
+        if (err) {
+            return console.log('Unable to scan directory: ' + err);
+        } 
+        files.forEach(function (fileName) {
+            fs.stat(directoryPath+ "/" + fileName, function(err, stat) {
+                if (stat) {
+                    if(stat.isDirectory()){
+                        readAllFileAndDir(fileName)
+                    }else{
+                        if(fileName.match(regEx)){
+                            readFileData(directoryPath+"/"+fileName , fileName)
+                        }
+                    }
+                }
+            });
+        });
     });
-});
+}
 
 //readFile Data in UTF-8 format
-function readFileData(fileName){
-    fs.readFile(`./${fileName}`, {encoding: 'utf-8'}, (err,data) => {
-        !err ? findBtwnData(data, fileName) : console.log('ErrorMessage: ', err);
+function readFileData(filePath, fileName){
+    fs.readFile(`${filePath}`, {encoding: 'utf-8'}, (err,data) => {
+        !err ? findBtwnData(data, fileName, filePath) : console.log('ErrorMessage: ', err);
     })
 }
 
 //Find all the data which exists in between angle brackets(><)
-function findBtwnData(fileData, fileName){
+function findBtwnData(fileData, fileName, filePath){
     let textArray = [];
     let ci = -1;
     let textMode = false;
-    
-    for(let i=0; i<fileData.length; i++){
-        let cc = fileData.charAt(i);
-        if(cc === ">"){
-            textMode = true;
-            continue;
-        }else if(cc === "<"){
-            textMode = false;
-            ci++;
-            textArray.push("");
-            continue;
+    if(!fileData.match(/\| translate/)){
+        for(let i=0; i<fileData.length; i++){
+            let cc = fileData.charAt(i);
+            if(cc === ">"){
+                textMode = true;
+                continue;
+            }else if(cc === "<"){
+                textMode = false;
+                ci++;
+                textArray.push("");
+                continue;
+            }
+            if(textMode){
+                textArray[ci] += cc; 
+            }
         }
-        if(textMode){
-            textArray[ci] += cc; 
-        }
+    createJsonObject(textArray, fileData, fileName, filePath);
+    console.log(textArray)
     }
-    createJsonObject(textArray, fileData, fileName);
 }
 
-function createJsonObject(textArray, fileData, fileName){
+function createJsonObject(textArray, fileData, fileName, filePath){
     let jsonData = '';
     textArray.forEach((text) => {
         if(text && !text.match(/\n/)){
@@ -58,10 +71,9 @@ function createJsonObject(textArray, fileData, fileName){
             jsonData += `"${key}": "${text}",\n`;
         }
     });
-    jsonData = `{${jsonData}}`
+    console.log(jsonData);
     writeOrCreateFile(jsonData);
-    console.log("fileData", fileData)
-    fs.writeFile(fileName, fileData, function(err) {
+    fs.writeFile(filePath, fileData, function(err) {
         if (err) {
             console.log(err);
             return;
@@ -80,7 +92,7 @@ function writeOrCreateFile(jsonObj){
         //     if (err) throw err;
         //     writeMyData(jsonObj);
         //   });
-        createNewFile(jsonObj)
+        appendFileData(jsonObj)
       });
 }
 
@@ -90,3 +102,13 @@ function createNewFile(jsonObj){
         // writeMyData(jsonObj);
     });
 }
+
+function appendFileData(jsonData){
+    // console.log(jsonData);
+    fs.appendFile(jsonFileName, jsonData, function (err) {
+        if (err) throw err;
+        console.log('Saved!');
+      });
+}
+
+readAllFileAndDir("");
